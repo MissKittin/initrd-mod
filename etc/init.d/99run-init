@@ -1,0 +1,21 @@
+# Move dev proc sys to $root_directory
+log "init: Moving to real filesystem"
+mount -o move /dev $root_directory/dev > /dev/null 2>&1
+mount -o move /proc $root_directory/proc > /dev/null 2>&1
+mount -o move /sys $root_directory/sys > /dev/null 2>&1
+
+# Jump to $root_init or kernel panic
+log "init: Trying to run $root_init"
+if [ -e $root_directory/$root_init ]; then
+    exec $inithelper $root_directory $root_init < ${root_directory}/dev/console > ${root_directory}/dev/console 2>&1
+else
+    if [ "$debug_failshell" = "1" ]; then
+        echo "There is no ${root_init}."
+        setsid cttyhack /bin/sh
+        echo "Going kernel panic..."
+        exit 1
+    else
+        echo "There is no ${root_init}. Going kernel panic..."
+        exit 1
+    fi
+fi

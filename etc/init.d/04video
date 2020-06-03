@@ -1,0 +1,75 @@
+# Vesa video
+case $vesafb in
+    1)
+        log "init: vesa: Loading vesa framebuffer"
+        $modprobe fbcon
+        $modprobe vesafb
+        log "init: vesa: Creating framebuffers' devices"
+        if [ -e /dev/fb0 ]; then
+            rm /dev/fb0
+        fi
+        if [ -e /proc/fb ]; then
+            while read fbno desc; do
+                mknod /dev/fb${fbno} c 29 ${fbno}
+            done < /proc/fb
+        else
+            mknod /dev/fb0 c 29 0
+        fi
+        log "init: vesa: Creating TTYs"
+        for i in 0 1 2 3 4 5 6 7 8; do
+            rm /dev/tty${i}
+            mknod /dev/tty${i} c 4 ${i}
+        done
+    ;;
+esac
+# Other framebuffer driver
+case $video in
+    0 | '')
+        # None
+    ;;
+    *)
+        log "init: video: Trying to load framebuffer"
+
+        parse_video_opts()
+        {
+            local OPTS="$1"
+            local IFS=","
+
+            # Must be a line like video=<fbdriver>:<opt1>,[opt2]...
+            if [ "${OPTS}" = "${OPTS%%:*}" ]; then
+                return
+            fi
+            OPTS="${OPTS#*:}"
+            for opt in ${OPTS}; do
+                # Already in the "<arg>=<value>" form
+                if [ "${opt}" != "${opt#*=}" ]; then
+                    echo -n "$opt "
+                # In the "<arg>:<value>" form
+                elif [ "${opt}" != "${opt#*:}" ]; then
+                    echo -n "${opt%:*}=${opt#*:} "
+                # Presumably a modevalue without the "mode=" prefix
+                elif [ "${opt}" != "${opt#[0-9]*x[0-9]}" ]; then
+                    echo -n "mode=$opt "
+                # Presumably a boolean
+                else
+                    echo -n "${opt}=1 "
+                fi
+            done
+        }
+
+        FB="${FB%%:*}"
+        OPTS="$(parse_video_opts "${x}")"
+        $modprobe fbcon
+        log "init: video: Loading $FB with options $OPTS"
+	$modprobe ${FB} ${OPTS}
+
+	case $? in
+	    0)
+	        log "init: video: Loaded without errors"
+	    ;;
+	    *)
+	        log "init: video: Loading failed"
+	    ;;
+	esac
+    ;;
+esac

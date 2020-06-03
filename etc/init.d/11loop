@@ -1,0 +1,57 @@
+# Mount loopfs support addon
+for x in $(cat /proc/cmdline); do
+    case $x in
+        loop=*)
+
+            loop="${x#loop=}"
+            loop_directory="/loop"
+            loop_device="/dev/loop0"
+
+            for y in $(cat /proc/cmdline); do
+                case $y in
+                    loopflags=*)
+                        loop_flags="-o ${y#loopflags=}"
+                    ;;
+                    loopfstype=*)
+                        loop_fstype="${y#loopfstype=}"
+                    ;;
+                esac
+            done
+
+            load_loopfs()
+            {
+                case $loop_fstype in
+                    "")
+                        echo "No loop filesystem type defined. Boot failed."
+                    ;;
+                    *)
+                        log "init: loop: mount: Loading loop filesystem driver $loop_fstype"
+                        $modprobe loop
+                        $modprobe $loop_fstype
+                    ;;
+                esac
+            }
+            mount_loopfs()
+            {
+                case $loop_fstype in
+                    "")
+                        echo "No loop filesystem type defined. Boot failed."
+                    ;;
+                    *)
+                        log "init: loop: mount: Setting $loop as $loop_device"
+                        losetup $loop_device $root_directory/$loop
+                        log "init: loop: mount: Mounting loop $loop as $loop_fstype"
+                        mount -t $loop_fstype $loop_flags $loop_readonly $loop_device $loop_directory
+                    ;;
+                esac
+            }
+
+            log "init: loop: Loop image addon enabled"
+            mkdir $loop_directory
+            load_loopfs
+            /bin/busybox mount -o remount,rw $root_directory
+            mount_loopfs
+            root_directory=$loop_directory; unset loop_directory
+        ;;
+    esac
+done

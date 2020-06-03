@@ -1,0 +1,4 @@
+# Mount dev proc sys
+/bin/mount -t tmpfs none /dev
+/bin/mount -o nodev,noexec,nosuid -t proc proc /proc
+/bin/mount -o nodev,noexec,nosuid -t sysfs sysfs /sys

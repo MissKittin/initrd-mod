@@ -1,0 +1,13 @@
+# Make devices and start *dev or stop *dev
+case $dev_loaded in
+    1)
+        log "init: devmgr: Stopping device manager"
+        echo > /proc/sys/kernel/hotplug
+    ;;
+    '')
+        log "init: devmgr: Starting device manager"
+        echo $dev > /proc/sys/kernel/hotplug
+        $dev $dev_params
+        dev_loaded=1
+    ;;
+esac

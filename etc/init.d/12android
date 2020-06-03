@@ -1,0 +1,149 @@
+# Android-x86 support addon [alpha]
+for x in $(cat /proc/cmdline); do
+    case $x in
+        android | android=*)
+            log "init: Android-x86 addon enabled"
+
+            root_init="/init"
+            android_root_directory="/android"
+            android_mount="/bin/busybox mount"
+
+            for y in $(cat /proc/cmdline); do
+                case $y in
+                    SRC=*)
+                        android_dir=${y#SRC=}
+                    ;;
+                    SDCARD=*)
+                        android_sdcard=${y#SDCARD=}
+                    ;;
+                    datafstype=*)
+                        android_data_fstype=${y#datafstype=}
+                    ;;
+                    sdcardfstype=*)
+                        android_sdcard_fstype=${y#sdcardfstype=}
+                    ;;
+                    systemfstype=*)
+                        android_system_fstype=${y#systemfstype=}
+                    ;;
+                esac
+            done
+
+            android_loadfs()
+            {
+                case $1 in
+                    data)
+                        android_loadfs_fstype=$android_data_fstype
+                    ;;
+                    sdcard)
+                        android_loadfs_fstype=$android_sdcard_fstype
+                    ;;
+                    system)
+                        android_loadfs_fstype=$android_system_fstype
+                    ;;
+                esac
+                if [ "$android_loadfs_fstype" = "" ]; then
+                    log "init: android: mount: $1 filesystem type not specified"
+                else
+                    log "init: android: mount: Loading $1 $android_loadfs_fstype driver"
+                    $modprobe $android_loadfs_fstype
+                fi
+            }
+            android_mount()
+            {
+                case $1 in
+                    data)
+                        android_mount_fstype=$android_data_fstype
+                    ;;
+                    system)
+                        android_mount_fstype=$android_system_fstype
+                    ;;
+                esac
+                if [ -e $root_directory/$SRC/$1.img ]; then
+                    log "init: android: mount: Mounting $1.img as $android_mount_fstype"
+                    $android_mount -t $android_mount_fstype -o loop $root_directory/$SRC/$1.img $android_root_directory/$1
+                    if [ "$1" = "system" ]; then
+                        log "init: android: mount: Remounting system read-only"
+                        $android_mount -o remount,ro $android_root_directory/system
+                    fi
+                elif [ -e $root_directory/$SRC/$1 ]; then
+                    log "init: android: mount: Binding $1"
+                    $android_mount -o bind $root_directory/$SRC/$1 $android_root_directory/$1
+                elif [ -e $root_directory/$SRC/$1.sqs ]; then
+                    log "init: android: mount: Mounting $1.sqs as squashfs"
+                    mkdir /sqs/$1
+                    $modprobe loop
+                    $modprobe squashfs
+                    $android_mount -t squashfs -o loop $root_directory/$SRC/$1.sqs /sqs/$1
+                    if [ -e /sqs/$1/$1.img ]; then
+                        log "init: android: mount: Mounting $1.img"
+                        $android_mount -t $android_mount_fstype -o loop /sqs/$1/$1.img $android_root_directory/$1
+                    else
+                        log "init: android: mount: Moving $1"
+                        $android_mount -o move /sqs/$1 $android_root_directory/$1
+                    fi
+                else
+                    log "init: android: mount: $1 partition not found."
+                fi
+            }
+            android_mount_sdcard()
+            {
+                if [ -e $root_directory/$SRC/sdcard.img ]; then
+                    log "init: android: mount: Mounting sdcard.img as $android_sdcard_fstype"
+                    $android_mount -t $android_sdcard_fstype -o loop $root_directory/$SRC/sdcard.img $android_root_direcory/mnt/sdcard
+                elif [ -e $root_directory/$SRC/sdcard ]; then
+                    log "init: android: mount: Binding sdcard"
+                    $android_mount -o bind $root_directory/$SRC/sdcard $android_root_direcory/mnt/sdcard
+                elif [ ! "$android_sdcard" = "" ]; then
+                    log "init: android: mount: Mounting $android_sdcard as $android_sdcard_fstype sdcard"
+                    $android_mount -t $android_sdcard_fstype $android_sdcard $android_root_direcory/mnt/sdcard
+                else
+                    log "init: android: mount: Fake sd card option disabled"
+                fi
+            }
+            android_setup_tslib()
+            {
+                log "init: android: Trying to setup tslib"
+                if [ -n "$BOARD_USES_TSLIB" ]; then
+                    TSLIBPATH=$android_root_directory/data/system/tslib
+                    if [ ! -e $TSLIBPATH/pointercal ]; then
+                        mkdir -p $TSLIBPATH
+                        if [ -z "$CALIBRATE" -a -n "`ls $android_root_directory/system/etc/pointercal*`" ]; then
+                            board=`cat /sys/class/dmi/id/product_name`
+                            [ -e $android_root_directory/system/etc/pointercal.$board ] && pointercal=$android_root_directory/system/etc/pointercal.$board
+                            [ -e $android_root_directory/system/etc/pointercal ] && pointercal=$android_root_directory/system/etc/pointercal
+                        fi
+                        if [ -n "$pointercal" ]; then
+                            cp $pointercal $TSLIBPATH/pointercal
+                        elif [ -e $android_root_directory/system/etc/ts.env ]; then
+                            mkdir /dev/graphics /dev/input
+                            ln -s /dev/fb* /dev/graphics
+                            ln -s /dev/event* /dev/input
+                            #ts_calibrate > /tmp/cal.log
+                        fi
+                        chmod 664 $TSLIBPATH/pointercal
+                        chown 1000.1000 data data/system $TSLIBPATH
+                    fi
+                fi
+            }
+
+            mkdir $android_root_directory /sqs
+            $android_mount -t tmpfs none $android_root_directory
+            cd $android_root_directory
+                log "init: android: Unpacking android rootfs"
+                zcat $root_directory/$SRC/ramdisk.img | cpio -id > /dev/null
+            cd /
+            $android_mount -t tmpfs none $android_root_directory/cache
+            $modprobe loop
+            android_loadfs system
+            android_mount system
+            rm /system/lib; ln -s $android_root_directory/system/lib /system/lib
+            . /etc/init.d/*modules
+            android_loadfs data
+            android_mount data
+            android_loadfs sdcard
+            android_mount_sdcard
+            android_setup_tslib
+            root_directory=$android_root_directory; unset android_root_directory
+        ;;
+    esac
+done

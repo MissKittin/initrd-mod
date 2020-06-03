@@ -1,0 +1,12 @@
+# Wake suspended2disk system
+if [ ! "$resume" = "disabled" ]; then
+    if [ -e /sys/power/resume ]; then
+        log "init: swsusp: Calling"
+        if [ ! "$resume_offset" = "" ]; then
+            /bin/resume -r ${resume} -o ${resume_offset}
+        else
+            /bin/resume ${resume}
+        fi
+        log "init: swsusp: No suspend image or error occured, ignoring"
+    fi
+fi

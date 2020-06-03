@@ -1,0 +1,20 @@
+# Detect hardware and load modules
+
+# Build blacklist # Note: When vga=x<0 parameter is used, fbcon and vesafb cannot be blacklisted here
+log "init: modules: Building modules blacklist"
+for i in `echo $blacklist_modules | tr "|" "\n"`; do
+    log "init: modules: blacklist: Blacking module $i"
+    echo blacklist $i >> /etc/modprobe.d/auto-blacklist
+done
+
+# Load user defined modules
+log "init: modules: Loading user-defined modules"
+for i in `ls /etc/modules.d`; do
+    for j in `cat /etc/modules.d/$i | grep -v "#"`; do
+        log "init: modules: user-defined: Loading module $j"
+        $modprobe $j
+    done
+done
+
+log "init: modules: Autoloading modules"
+load_modules

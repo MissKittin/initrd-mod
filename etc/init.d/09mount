@@ -1,0 +1,52 @@
+# Mount rootfs on disk
+load_rootfs()
+{
+    case $root_fstype in
+        "")
+            echo "No root filesystem type defined. Boot failed."
+        ;;
+        *)
+            case $root_fstype in
+                ntfs | ntfs-3g)
+                    # None
+                ;;
+                *)
+                    log "init: mount: Loading root filesystem driver $root_fstype"
+                    $modprobe $root_fstype
+                ;;
+            esac
+        ;;
+    esac
+}
+mount_rootfs()
+{
+    if [ "$root" = "" ]; then
+        echo "No root device defined. Boot failed."
+    elif [ "$root_fstype" = "" ]; then
+        echo "No root filesystem type defined. Boot failed."
+    else
+        case $root_fstype in
+            ntfs)
+                log "init: mount: Mounting $root as ntfs"
+                mount.ntfs-3g $root_flags $root_readonly $root $root_directory
+            ;;
+            *)
+                log "init: mount: Mounting $root as $root_fstype"
+                mount -t $root_fstype $root_flags $root_readonly $root $root_directory
+            ;;
+        esac
+    fi
+}
+
+log "init: Mounting root filesystem"
+case $root_delay in
+    "")
+        # None
+    ;;
+    *)
+        log "init: mount: Delay $root_delay sec."
+        sleep $root_delay
+    ;;
+esac
+load_rootfs
+mount_rootfs

@@ -1,0 +1,4 @@
+#!/bin/sh
+for i in `/bin/ls /etc/init.d`; do
+    . /etc/init.d/$i
+done

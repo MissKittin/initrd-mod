@@ -1,0 +1,23 @@
+# Debug shell/quiet kernel
+case $DEBUG in
+    1)
+        case $kbdprobe in
+            '')
+                log "init: Loading AT keyboard driver"
+                $modprobe atkbd.ko || true
+                kbdprobe=1
+            ;;
+        esac
+        echo "Debug/recovery mode enabled. Dropping to shell"
+        setsid cttyhack /bin/sh
+    ;;
+    *)
+        case $kernel_is_quiet in
+            '')
+                log "init: Kernel will be quiet"
+                echo 0 0 0 0 > /proc/sys/kernel/printk
+                kernel_is_quiet=1
+            ;;
+        esac
+    ;;
+esac

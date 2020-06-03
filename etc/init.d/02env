@@ -1,0 +1,16 @@
+# Setup modprobe
+mkdir /system; ln -s /lib /system/lib
+
+# Setup input, output and error for logging
+ln -s /proc/self/fd/0 /dev/stdin
+ln -s /proc/self/fd/1 /dev/stdout
+ln -s /proc/self/fd/2 /dev/stderr
+
+# Setup kernel message device
+mknod -m 660 /dev/kmsg c 1 11
+
+# Make $root_directory - for mount module
+[ ! -e $root_directory ] && mkdir $root_directory; chmod 700 $root_directory
+
+# Log: I'm ready!
+log "init: environment: Prepared and ready for action."

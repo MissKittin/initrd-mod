@@ -1,0 +1,106 @@
+# Set vars
+# init
+PATH=/bin
+modprobe="modprobe -q -b"
+
+# run-init
+root_init="/sbin/init"
+inithelper="run-init"
+# mount
+root_directory="/root"
+# dev
+dev="/bin/mdev"
+dev_params="-s"
+# log()
+log_device="/dev/stdout"
+# hibernate
+resume="disabled"
+
+for x in $(cat /proc/cmdline); do
+    case $x in
+            # run-init
+            init=*)
+                root_init=${x#init=}
+            ;;
+            # mount
+            root=*)
+                root=${x#root=}
+            ;;
+            rootflags=*)
+                root_flags="-o ${x#rootflags=}"
+            ;;
+            rootfstype=*)
+                root_fstype="${x#rootfstype=}"
+            ;;
+            rootdelay=*)
+                root_delay="${x#rootdelay=}"
+            ;;
+            ro)
+                root_readonly="-o ro"
+            ;;
+            rw)
+                root_readonly="-o rw"
+            ;;
+            # hibernate
+            resume=*)
+                resume="${x#resume=}"
+            ;;
+            resumeoffset=*)
+                resume_offset="${x#resumeoffset=}"
+	    ;;
+	    # video
+            vga=*)
+                vesafb=1
+                video=0
+            ;;
+            vga=0)
+                vesafb=0
+            ;;
+            video=*)
+                video="${x#video=}"
+                vesafb=0
+            ;;
+            videonoinitrd)
+                vesafb=0
+                video=0
+            ;;
+            # init and kernel
+            quiet)
+                quiet=1
+                log_device="/dev/kmsg"
+            ;;
+            # debug
+            DEBUG=*)
+                DEBUG="${x#DEBUG=}"
+            ;;
+            failshell)
+                debug_failshell=1
+            ;;
+            # modules
+            blacklistmodules=*)
+                blacklist_modules="${x#blacklistmodules=}"
+            ;;
+        esac
+done
+
+# modules
+load_modules()
+{
+    d2m=/etc/dev2mod
+    echo 'dev2mod() { while read dev; do case $dev in' >> $d2m
+    # Original version --->
+    #   sort -r /lib/modules/`uname -r`/modules.alias | \
+    #       sed -n 's/^alias  *\([^ ]*\)  *\(.*\)/\1)modprobe \2;;/p' >> $d2m
+    # <---
+    sort -r /lib/modules/`uname -r`/modules.alias | \
+        sed -n 's/^alias  *\([^ ]*\)  *\(.*\)/\1)'"$modprobe"' \2;;/p' >> $d2m
+    echo 'esac; done; }' >> $d2m
+    source $d2m
+    cat /sys/bus/*/devices/*/modalias | dev2mod
+    cat /sys/devices/virtual/wmi/*/modalias | dev2mod
+}
+# init
+log()
+{
+    echo $@ > $log_device 2>&1
+}
